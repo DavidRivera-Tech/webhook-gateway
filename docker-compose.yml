@@ -1,0 +1,68 @@
+# Runs the ENTIRE system with one command: `docker compose up`.
+# Five services start together and are wired to talk to each other:
+#   - postgres  : the production database
+#   - redis     : the job queue store
+#   - api       : the FastAPI app (receives webhooks)
+#   - worker    : pulls delivery jobs and delivers them
+#   - scheduler : re-queues delayed retries when their backoff is up
+#
+# The api, worker, and scheduler all use the same image (built from the
+# Dockerfile) and share the same environment so they reach postgres and
+# redis by their service NAMES (Docker Compose gives each service a hostname).
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: webhook
+      POSTGRES_PASSWORD: webhook
+      POSTGRES_DB: webhooks
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U webhook -d webhooks"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  api:
+    build: .
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://webhook:webhook@postgres:5432/webhooks
+      REDIS_HOST: redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  worker:
+    build: .
+    command: python worker.py
+    environment:
+      DATABASE_URL: postgresql://webhook:webhook@postgres:5432/webhooks
+      REDIS_HOST: redis
+    depends_on:
+      - api
+
+  scheduler:
+    build: .
+    command: python scheduler.py
+    environment:
+      DATABASE_URL: postgresql://webhook:webhook@postgres:5432/webhooks
+      REDIS_HOST: redis
+    depends_on:
+      - api
+
+volumes:
+  pgdata:

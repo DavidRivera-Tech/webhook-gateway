@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+sqlmodel
+httpx
+redis
+rq
+psycopg2-binary
+pytest
+locust
