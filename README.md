@@ -6,7 +6,7 @@ asynchronously, with automatic retries, a per-endpoint circuit breaker, and
 idempotency guarantees.
 
 Built to demonstrate real distributed-systems patterns: asynchronous task
-processing, resilience against failing downstreams, and exactly-once delivery.
+processing, resilience against failing downstreams.
 
 ---
 
